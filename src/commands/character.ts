@@ -7,7 +7,7 @@ import {
   StringSelectMenuOptionBuilder,
   EmbedBuilder,
 } from 'discord.js';
-import { CharacterManagerDB } from '../utils/characterManagerDB';
+import { CharacterManagerSheets } from '../utils/characterManagerSheets';
 import { checkAdminPermission } from '../utils/permissions';
 
 export const data = new SlashCommandBuilder()
@@ -53,7 +53,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const subcommand = interaction.options.getSubcommand();
-  const characterManager = CharacterManagerDB.getInstance();
+  const characterManager = CharacterManagerSheets.getInstance();
 
   switch (subcommand) {
     case 'select':
@@ -76,7 +76,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
 async function handleSelectCommand(
   interaction: ChatInputCommandInteraction,
-  characterManager: CharacterManagerDB
+  characterManager: CharacterManagerSheets
 ) {
   try {
     const characters = await characterManager.getCharacters();
@@ -125,7 +125,7 @@ async function handleSelectCommand(
 
 async function handleAddCommand(
   interaction: ChatInputCommandInteraction,
-  characterManager: CharacterManagerDB
+  characterManager: CharacterManagerSheets
 ) {
   try {
     if (!interaction.member || !interaction.guild) {
@@ -156,7 +156,7 @@ async function handleAddCommand(
 
 async function handleRemoveCommand(
   interaction: ChatInputCommandInteraction,
-  characterManager: CharacterManagerDB
+  characterManager: CharacterManagerSheets
 ) {
   try {
     if (!interaction.member || !interaction.guild) {
@@ -187,7 +187,7 @@ async function handleRemoveCommand(
 
 async function handleListCommand(
   interaction: ChatInputCommandInteraction,
-  characterManager: CharacterManagerDB
+  characterManager: CharacterManagerSheets
 ) {
   try {
     if (!interaction.member || !interaction.guild) {
@@ -239,7 +239,7 @@ async function handleListCommand(
 
 async function handleInfoCommand(
   interaction: ChatInputCommandInteraction,
-  characterManager: CharacterManagerDB
+  characterManager: CharacterManagerSheets
 ) {
   try {
     if (!interaction.member || !interaction.guild) {
