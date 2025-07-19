@@ -2,9 +2,12 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   StringSelectMenuInteraction,
+  ButtonInteraction,
   ActionRowBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   EmbedBuilder,
 } from 'discord.js';
 import { CharacterManagerSheets } from '../utils/characterManagerSheets';
@@ -89,74 +92,8 @@ async function handleSelectCommand(
       return;
     }
 
-    // Discord制限: 最大25選択肢まで
-    const MAX_OPTIONS = 25;
-    
-    if (characters.length <= MAX_OPTIONS) {
-      // 25文字以下の場合は単一メニュー
-      const options = characters.map(character =>
-        new StringSelectMenuOptionBuilder()
-          .setLabel(character)
-          .setValue(character)
-      );
-
-      const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId('character_select')
-        .setPlaceholder('キャラクターを選択してください')
-        .addOptions(options);
-
-      const row = new ActionRowBuilder<StringSelectMenuBuilder>()
-        .addComponents(selectMenu);
-
-      const embed = new EmbedBuilder()
-        .setColor(0x0099FF)
-        .setTitle('🎮 キャラクター選択')
-        .setDescription('以下のドロップダウンメニューからキャラクターを選択してください')
-        .setFooter({ text: `利用可能キャラクター: ${characters.length}体` });
-
-      await interaction.reply({
-        embeds: [embed],
-        components: [row],
-        ephemeral: false,
-      });
-    } else {
-      // 25文字超の場合はページ分割
-      const totalPages = Math.ceil(characters.length / MAX_OPTIONS);
-      const pageOptions = [];
-      
-      for (let page = 0; page < totalPages; page++) {
-        const startIndex = page * MAX_OPTIONS;
-        const endIndex = Math.min(startIndex + MAX_OPTIONS, characters.length);
-        const pageCharacters = characters.slice(startIndex, endIndex);
-        
-        pageOptions.push(
-          new StringSelectMenuOptionBuilder()
-            .setLabel(`ページ ${page + 1}: ${pageCharacters[0]} - ${pageCharacters[pageCharacters.length - 1]}`)
-            .setValue(`page_${page}`)
-            .setDescription(`${pageCharacters.length}文字 (${startIndex + 1}-${endIndex})`)
-        );
-      }
-
-      const pageSelectMenu = new StringSelectMenuBuilder()
-        .setCustomId('character_page_select')
-        .setPlaceholder('ページを選択してください')
-        .addOptions(pageOptions);
-
-      const row = new ActionRowBuilder<StringSelectMenuBuilder>()
-        .addComponents(pageSelectMenu);
-
-      const embed = new EmbedBuilder()
-        .setColor(0x0099FF)
-        .setTitle('🎮 キャラクター選択 (ページ分割)')
-        .setDescription(`キャラクター数が多いため、ページ分割されています。\n\n**総数: ${characters.length}文字**\n**ページ数: ${totalPages}ページ**\n\nまず、ページを選択してください。`)
-        .setFooter({ text: 'ページを選択後、キャラクターを選択できます' });
-
-      await interaction.reply({
-        embeds: [embed],
-        components: [row],
-        ephemeral: false,
-      });
-    }
+    // ボタン方式でページ表示（最初のページを表示）
+    await showCharacterButtonPage(interaction, characters, 0, 'reply');
   } catch (error) {
     console.error('[ERROR] Failed to handle select command:', error);
     await interaction.reply({
@@ -397,6 +334,169 @@ export async function handleCharacterPageSelect(interaction: StringSelectMenuInt
     console.error('[ERROR] Failed to handle page selection:', error);
     await interaction.reply({
       content: '❌ ページ選択の処理に失敗しました',
+      ephemeral: true,
+    });
+  }
+}
+
+async function showCharacterButtonPage(
+  interaction: ChatInputCommandInteraction | ButtonInteraction,
+  characters: string[],
+  currentPage: number,
+  responseType: 'reply' | 'update'
+) {
+  try {
+    const CHARACTERS_PER_PAGE = 20; // ナビゲーションボタンのために20文字まで
+    const totalPages = Math.ceil(characters.length / CHARACTERS_PER_PAGE);
+    
+    // 現在のページのキャラクター取得
+    const startIndex = currentPage * CHARACTERS_PER_PAGE;
+    const endIndex = Math.min(startIndex + CHARACTERS_PER_PAGE, characters.length);
+    const pageCharacters = characters.slice(startIndex, endIndex);
+
+    // キャラクターボタンを5行に分割（各行最大5ボタン）
+    const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+    
+    for (let i = 0; i < pageCharacters.length; i += 5) {
+      const rowCharacters = pageCharacters.slice(i, i + 5);
+      const row = new ActionRowBuilder<ButtonBuilder>();
+      
+      rowCharacters.forEach(character => {
+        row.addComponents(
+          new ButtonBuilder()
+            .setCustomId(`char_${character}`)
+            .setLabel(character)
+            .setStyle(ButtonStyle.Primary)
+        );
+      });
+      
+      rows.push(row);
+    }
+
+    // ナビゲーションボタン行
+    const navRow = new ActionRowBuilder<ButtonBuilder>();
+    
+    // 前ページボタン
+    navRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`prev_${currentPage}`)
+        .setLabel('⬅️ 前')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(currentPage === 0)
+    );
+
+    // ページ番号ボタン（現在のページ周辺のみ表示）
+    const maxPageButtons = 3;
+    let startPage = Math.max(0, currentPage - 1);
+    let endPage = Math.min(totalPages - 1, startPage + maxPageButtons - 1);
+    
+    // 調整：右端の場合
+    if (endPage - startPage < maxPageButtons - 1) {
+      startPage = Math.max(0, endPage - maxPageButtons + 1);
+    }
+
+    for (let page = startPage; page <= endPage; page++) {
+      navRow.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`page_${page}`)
+          .setLabel((page + 1).toString())
+          .setStyle(page === currentPage ? ButtonStyle.Success : ButtonStyle.Secondary)
+          .setDisabled(page === currentPage)
+      );
+    }
+
+    // 次ページボタン
+    navRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`next_${currentPage}`)
+        .setLabel('➡️ 次')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(currentPage === totalPages - 1)
+    );
+
+    rows.push(navRow);
+
+    const embed = new EmbedBuilder()
+      .setColor(0x0099FF)
+      .setTitle(`🎮 キャラクター選択 - ページ ${currentPage + 1}/${totalPages}`)
+      .setDescription(`キャラクターを選択してください\n\n**表示範囲:** ${startIndex + 1} - ${endIndex} 番目`)
+      .setFooter({ text: `このページ: ${pageCharacters.length}文字 | 総数: ${characters.length}文字` });
+
+    const payload = {
+      embeds: [embed],
+      components: rows,
+    };
+
+    if (responseType === 'reply') {
+      await interaction.reply(payload);
+    } else {
+      // ButtonInteractionのみupdateメソッドを持つ
+      if ('update' in interaction) {
+        await interaction.update(payload);
+      } else {
+        await interaction.reply(payload);
+      }
+    }
+
+  } catch (error) {
+    console.error('[ERROR] Failed to show character button page:', error);
+    const errorMessage = '❌ キャラクター選択画面の表示に失敗しました';
+    
+    if (responseType === 'reply') {
+      await interaction.reply({ content: errorMessage, ephemeral: true });
+    } else {
+      await interaction.followUp({ content: errorMessage, ephemeral: true });
+    }
+  }
+}
+
+export async function handleCharacterButtonInteraction(interaction: ButtonInteraction) {
+  try {
+    const customId = interaction.customId;
+    
+    if (customId.startsWith('char_')) {
+      // キャラクター選択
+      const selectedCharacter = customId.replace('char_', '');
+      const user = interaction.user;
+
+      const embed = new EmbedBuilder()
+        .setColor(0x00FF00)
+        .setTitle('✅ キャラクター選択完了')
+        .setDescription(`${user} が **${selectedCharacter}** を選択しました`)
+        .setTimestamp();
+
+      await interaction.reply({
+        embeds: [embed],
+        ephemeral: false,
+      });
+
+      console.log(`[INFO] Character selected: ${selectedCharacter} by ${user.username} (${user.id})`);
+      
+    } else if (customId.startsWith('prev_') || customId.startsWith('next_') || customId.startsWith('page_')) {
+      // ページナビゲーション
+      const characterManager = CharacterManagerSheets.getInstance();
+      const characters = await characterManager.getCharacters();
+      
+      let newPage = 0;
+      
+      if (customId.startsWith('prev_')) {
+        const currentPage = parseInt(customId.replace('prev_', ''));
+        newPage = Math.max(0, currentPage - 1);
+      } else if (customId.startsWith('next_')) {
+        const currentPage = parseInt(customId.replace('next_', ''));
+        const totalPages = Math.ceil(characters.length / 20);
+        newPage = Math.min(totalPages - 1, currentPage + 1);
+      } else if (customId.startsWith('page_')) {
+        newPage = parseInt(customId.replace('page_', ''));
+      }
+      
+      await showCharacterButtonPage(interaction, characters, newPage, 'update');
+    }
+    
+  } catch (error) {
+    console.error('[ERROR] Failed to handle character button interaction:', error);
+    await interaction.reply({
+      content: '❌ ボタン操作の処理に失敗しました',
       ephemeral: true,
     });
   }

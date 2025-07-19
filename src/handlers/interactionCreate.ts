@@ -1,6 +1,6 @@
 import { Interaction } from 'discord.js';
 import { commands } from '../commands';
-import { handleCharacterSelect, handleCharacterPageSelect } from '../commands/character';
+import { handleCharacterSelect, handleCharacterPageSelect, handleCharacterButtonInteraction } from '../commands/character';
 
 export async function handleInteractionCreate(interaction: Interaction) {
   try {
@@ -18,6 +18,12 @@ export async function handleInteractionCreate(interaction: Interaction) {
         await handleCharacterSelect(interaction);
       } else if (interaction.customId === 'character_page_select') {
         await handleCharacterPageSelect(interaction);
+      }
+    } else if (interaction.isButton()) {
+      const customId = interaction.customId;
+      if (customId.startsWith('char_') || customId.startsWith('prev_') || 
+          customId.startsWith('next_') || customId.startsWith('page_')) {
+        await handleCharacterButtonInteraction(interaction);
       }
     }
   } catch (error) {
