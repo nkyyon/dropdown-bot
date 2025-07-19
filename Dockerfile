@@ -12,6 +12,9 @@ COPY . .
 # TypeScriptビルド
 RUN npm run build
 
+# データファイルをdistディレクトリにコピー
+RUN cp -r src/data dist/
+
 # 本番用依存関係のみ再インストール
 RUN npm ci --only=production && npm cache clean --force
 

@@ -2,7 +2,10 @@ import fs from 'fs/promises';
 import path from 'path';
 import { CharacterData } from '../types';
 
-const CHARACTER_FILE_PATH = path.join(__dirname, '../data/characters.json');
+// 本番環境とローカル環境の両方に対応
+const CHARACTER_FILE_PATH = process.env.NODE_ENV === 'production' 
+  ? path.join(process.cwd(), 'src/data/characters.json')
+  : path.join(__dirname, '../data/characters.json');
 
 export class CharacterManager {
   private static instance: CharacterManager;
