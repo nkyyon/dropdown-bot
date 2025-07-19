@@ -12,6 +12,12 @@ export class GoogleSheetsConnection {
     const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
     this.spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID || '';
 
+    // デバッグログ
+    console.log('[DEBUG] Environment variables check:');
+    console.log('- GOOGLE_SERVICE_ACCOUNT_EMAIL:', serviceAccountEmail ? 'SET' : 'MISSING');
+    console.log('- GOOGLE_PRIVATE_KEY:', privateKey ? 'SET' : 'MISSING');
+    console.log('- GOOGLE_SPREADSHEET_ID:', this.spreadsheetId || 'MISSING');
+
     if (!serviceAccountEmail || !privateKey || !this.spreadsheetId) {
       throw new Error('Google Sheets credentials are not properly configured');
     }
