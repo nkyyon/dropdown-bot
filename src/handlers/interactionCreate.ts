@@ -1,6 +1,6 @@
 import { Interaction } from 'discord.js';
 import { commands } from '../commands';
-import { handleCharacterSelect } from '../commands/character';
+import { handleCharacterSelect, handleCharacterPageSelect } from '../commands/character';
 
 export async function handleInteractionCreate(interaction: Interaction) {
   try {
@@ -16,6 +16,8 @@ export async function handleInteractionCreate(interaction: Interaction) {
     } else if (interaction.isStringSelectMenu()) {
       if (interaction.customId === 'character_select') {
         await handleCharacterSelect(interaction);
+      } else if (interaction.customId === 'character_page_select') {
+        await handleCharacterPageSelect(interaction);
       }
     }
   } catch (error) {

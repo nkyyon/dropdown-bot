@@ -89,31 +89,74 @@ async function handleSelectCommand(
       return;
     }
 
-    const options = characters.map(character =>
-      new StringSelectMenuOptionBuilder()
-        .setLabel(character)
-        .setValue(character)
-    );
+    // Discord制限: 最大25選択肢まで
+    const MAX_OPTIONS = 25;
+    
+    if (characters.length <= MAX_OPTIONS) {
+      // 25文字以下の場合は単一メニュー
+      const options = characters.map(character =>
+        new StringSelectMenuOptionBuilder()
+          .setLabel(character)
+          .setValue(character)
+      );
 
-    const selectMenu = new StringSelectMenuBuilder()
-      .setCustomId('character_select')
-      .setPlaceholder('キャラクターを選択してください')
-      .addOptions(options);
+      const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId('character_select')
+        .setPlaceholder('キャラクターを選択してください')
+        .addOptions(options);
 
-    const row = new ActionRowBuilder<StringSelectMenuBuilder>()
-      .addComponents(selectMenu);
+      const row = new ActionRowBuilder<StringSelectMenuBuilder>()
+        .addComponents(selectMenu);
 
-    const embed = new EmbedBuilder()
-      .setColor(0x0099FF)
-      .setTitle('🎮 キャラクター選択')
-      .setDescription('以下のドロップダウンメニューからキャラクターを選択してください')
-      .setFooter({ text: `利用可能キャラクター: ${characters.length}体` });
+      const embed = new EmbedBuilder()
+        .setColor(0x0099FF)
+        .setTitle('🎮 キャラクター選択')
+        .setDescription('以下のドロップダウンメニューからキャラクターを選択してください')
+        .setFooter({ text: `利用可能キャラクター: ${characters.length}体` });
 
-    await interaction.reply({
-      embeds: [embed],
-      components: [row],
-      ephemeral: false,
-    });
+      await interaction.reply({
+        embeds: [embed],
+        components: [row],
+        ephemeral: false,
+      });
+    } else {
+      // 25文字超の場合はページ分割
+      const totalPages = Math.ceil(characters.length / MAX_OPTIONS);
+      const pageOptions = [];
+      
+      for (let page = 0; page < totalPages; page++) {
+        const startIndex = page * MAX_OPTIONS;
+        const endIndex = Math.min(startIndex + MAX_OPTIONS, characters.length);
+        const pageCharacters = characters.slice(startIndex, endIndex);
+        
+        pageOptions.push(
+          new StringSelectMenuOptionBuilder()
+            .setLabel(`ページ ${page + 1}: ${pageCharacters[0]} - ${pageCharacters[pageCharacters.length - 1]}`)
+            .setValue(`page_${page}`)
+            .setDescription(`${pageCharacters.length}文字 (${startIndex + 1}-${endIndex})`)
+        );
+      }
+
+      const pageSelectMenu = new StringSelectMenuBuilder()
+        .setCustomId('character_page_select')
+        .setPlaceholder('ページを選択してください')
+        .addOptions(pageOptions);
+
+      const row = new ActionRowBuilder<StringSelectMenuBuilder>()
+        .addComponents(pageSelectMenu);
+
+      const embed = new EmbedBuilder()
+        .setColor(0x0099FF)
+        .setTitle('🎮 キャラクター選択 (ページ分割)')
+        .setDescription(`キャラクター数が多いため、ページ分割されています。\n\n**総数: ${characters.length}文字**\n**ページ数: ${totalPages}ページ**\n\nまず、ページを選択してください。`)
+        .setFooter({ text: 'ページを選択後、キャラクターを選択できます' });
+
+      await interaction.reply({
+        embeds: [embed],
+        components: [row],
+        ephemeral: false,
+      });
+    }
   } catch (error) {
     console.error('[ERROR] Failed to handle select command:', error);
     await interaction.reply({
@@ -305,6 +348,55 @@ export async function handleCharacterSelect(interaction: StringSelectMenuInterac
     console.error('[ERROR] Failed to handle character selection:', error);
     await interaction.reply({
       content: '❌ キャラクター選択の処理に失敗しました',
+      ephemeral: true,
+    });
+  }
+}
+
+export async function handleCharacterPageSelect(interaction: StringSelectMenuInteraction) {
+  try {
+    const selectedPage = interaction.values[0];
+    const pageNumber = parseInt(selectedPage.replace('page_', ''));
+    
+    const characterManager = CharacterManagerSheets.getInstance();
+    const characters = await characterManager.getCharacters();
+    
+    const MAX_OPTIONS = 25;
+    const startIndex = pageNumber * MAX_OPTIONS;
+    const endIndex = Math.min(startIndex + MAX_OPTIONS, characters.length);
+    const pageCharacters = characters.slice(startIndex, endIndex);
+
+    const options = pageCharacters.map(character =>
+      new StringSelectMenuOptionBuilder()
+        .setLabel(character)
+        .setValue(character)
+    );
+
+    const selectMenu = new StringSelectMenuBuilder()
+      .setCustomId('character_select')
+      .setPlaceholder('キャラクターを選択してください')
+      .addOptions(options);
+
+    const row = new ActionRowBuilder<StringSelectMenuBuilder>()
+      .addComponents(selectMenu);
+
+    const totalPages = Math.ceil(characters.length / MAX_OPTIONS);
+    const embed = new EmbedBuilder()
+      .setColor(0x0099FF)
+      .setTitle(`🎮 キャラクター選択 - ページ ${pageNumber + 1}/${totalPages}`)
+      .setDescription(`以下のドロップダウンメニューからキャラクターを選択してください\n\n**範囲:** ${startIndex + 1} - ${endIndex} 番目`)
+      .setFooter({ text: `このページ: ${pageCharacters.length}文字 | 総数: ${characters.length}文字` });
+
+    await interaction.update({
+      embeds: [embed],
+      components: [row],
+    });
+
+    console.log(`[INFO] Page ${pageNumber + 1} selected by ${interaction.user.username} (${pageCharacters.length} characters)`);
+  } catch (error) {
+    console.error('[ERROR] Failed to handle page selection:', error);
+    await interaction.reply({
+      content: '❌ ページ選択の処理に失敗しました',
       ephemeral: true,
     });
   }
