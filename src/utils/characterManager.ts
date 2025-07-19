@@ -7,6 +7,11 @@ const CHARACTER_FILE_PATH = process.env.NODE_ENV === 'production'
   ? path.join(process.cwd(), 'src/data/characters.json')
   : path.join(__dirname, '../data/characters.json');
 
+// 本番環境では書き込み可能なディレクトリを使用
+const WRITABLE_CHARACTER_FILE_PATH = process.env.NODE_ENV === 'production'
+  ? '/tmp/characters.json'
+  : CHARACTER_FILE_PATH;
+
 export class CharacterManager {
   private static instance: CharacterManager;
   private charactersData: CharacterData | null = null;
@@ -22,8 +27,25 @@ export class CharacterManager {
 
   async loadCharacters(): Promise<CharacterData> {
     try {
-      const fileContent = await fs.readFile(CHARACTER_FILE_PATH, 'utf-8');
-      this.charactersData = JSON.parse(fileContent);
+      // 本番環境では初回起動時にreadonly→tmpにコピー
+      if (process.env.NODE_ENV === 'production') {
+        try {
+          // 既にtmpにファイルがあるかチェック
+          await fs.access(WRITABLE_CHARACTER_FILE_PATH);
+        } catch {
+          // tmpにファイルがない場合、初期データをコピー
+          const initialData = await fs.readFile(CHARACTER_FILE_PATH, 'utf-8');
+          await fs.writeFile(WRITABLE_CHARACTER_FILE_PATH, initialData, 'utf-8');
+          console.log('[INFO] Initial characters data copied to writable location');
+        }
+        
+        const fileContent = await fs.readFile(WRITABLE_CHARACTER_FILE_PATH, 'utf-8');
+        this.charactersData = JSON.parse(fileContent);
+      } else {
+        const fileContent = await fs.readFile(CHARACTER_FILE_PATH, 'utf-8');
+        this.charactersData = JSON.parse(fileContent);
+      }
+      
       return this.charactersData!;
     } catch (error) {
       console.error('[ERROR] Failed to load characters.json:', error);
@@ -35,9 +57,19 @@ export class CharacterManager {
     try {
       data.metadata.lastUpdated = new Date().toISOString();
       const jsonContent = JSON.stringify(data, null, 2);
-      await fs.writeFile(CHARACTER_FILE_PATH, jsonContent, 'utf-8');
+      
+      // 本番環境では書き込み可能な場所に保存
+      const filePath = process.env.NODE_ENV === 'production' 
+        ? WRITABLE_CHARACTER_FILE_PATH 
+        : CHARACTER_FILE_PATH;
+        
+      await fs.writeFile(filePath, jsonContent, 'utf-8');
       this.charactersData = data;
       console.log('[INFO] Characters data saved successfully');
+      
+      if (process.env.NODE_ENV === 'production') {
+        console.log('[WARN] Changes saved to temporary storage - will be lost on restart');
+      }
     } catch (error) {
       console.error('[ERROR] Failed to save characters.json:', error);
       throw new Error('キャラクターデータの保存に失敗しました');
